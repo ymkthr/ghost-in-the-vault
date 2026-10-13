@@ -1,0 +1,22 @@
+{
+  "name": "ghost-in-the-vault",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Obsidian 内で Ghostty の見た目のまま zellij セッションへ接続するターミナル",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "test": "node --test --experimental-strip-types test/*.test.ts"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ghostty-web": "0.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "esbuild": "^0.28.2",
+    "obsidian": "1.14.4",
+    "typescript": "^5.9.3"
+  }
+}

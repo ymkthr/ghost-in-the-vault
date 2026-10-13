@@ -1,0 +1,9 @@
+.workspace-leaf-content[data-type="ghost-in-the-vault"] > .view-content.gz-view {
+  padding: 2px;
+  overflow: hidden;
+}
+
+.gz-host {
+  width: 100%;
+  height: 100%;
+}
