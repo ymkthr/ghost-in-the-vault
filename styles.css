@@ -2,6 +2,11 @@
   overflow: hidden;
 }
 
+/* 戻る・進むやタイトルのヘッダーはターミナルでは使わないので、表示領域に回す。 */
+.workspace-leaf-content[data-type="ghost-in-the-vault"] > .view-header {
+  display: none;
+}
+
 /* ghostty-web は端末の入れ物を contenteditable にするので、ブラウザ自身のカーソルが
    隠し textarea の位置 (左上) に点滅する。端末のカーソルは canvas に描かれるので不要。 */
 .gz-host {
