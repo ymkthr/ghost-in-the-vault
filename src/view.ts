@@ -1,6 +1,7 @@
-import { Terminal, init } from "ghostty-web";
+import { Terminal } from "ghostty-web";
 import { FileSystemAdapter, ItemView, Notice, Scope, type WorkspaceLeaf } from "obsidian";
 import { type OptionAsAlt, loadGhosttyLook } from "./ghostty-look.ts";
+import { loadGhostty } from "./ghostty-wasm.ts";
 import { type KeyLayout, createKittyFlagsTracker, encodeTextKey, loadKeyLayout } from "./keys.ts";
 import { attachMouseReporting } from "./mouse.ts";
 import { createOsc52Sniffer } from "./osc52.ts";
@@ -65,7 +66,7 @@ export class TerminalView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    const [env, layout] = await Promise.all([this.deps.loginEnv(), loadKeyLayout(), init()]);
+    const [env, layout, ghostty] = await Promise.all([this.deps.loginEnv(), loadKeyLayout(), loadGhostty()]);
     const result = await loadGhosttyLook(env);
     if (result.kind === "fallback") new Notice(`Ghostty の設定を読めなかったため既定の見た目で開きます: ${result.reason}`);
     const { look } = result;
@@ -83,6 +84,7 @@ export class TerminalView extends ItemView {
     const host = this.contentEl.createDiv({ cls: "gz-host" });
 
     const term = new Terminal({
+      ghostty,
       fontFamily: look.fontFamily,
       fontSize: look.fontSize,
       theme: look.theme,

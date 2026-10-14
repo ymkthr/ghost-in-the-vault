@@ -1,0 +1,37 @@
+diff --git a/src/terminal/PageList.zig b/src/terminal/PageList.zig
+index 29f414e03..99675b833 100644
+--- a/src/terminal/PageList.zig
++++ b/src/terminal/PageList.zig
+@@ -4,6 +4,7 @@
+ const PageList = @This();
+ 
+ const std = @import("std");
++const builtin = @import("builtin");
+ const build_options = @import("terminal_options");
+ const Allocator = std.mem.Allocator;
+ const assert = @import("../quirks.zig").inlineAssert;
+@@ -340,8 +341,10 @@ fn initPages(
+ 
+         // In runtime safety modes we have to memset because the Zig allocator
+         // interface will always memset to 0xAA for undefined. In non-safe modes
+-        // we use a page allocator and the OS guarantees zeroed memory.
+-        if (comptime std.debug.runtime_safety) @memset(page_buf, 0);
++        // we use a page allocator and the OS guarantees zeroed memory, except
++        // on wasm where std.heap.page_allocator is WasmAllocator, which hands
++        // out previously freed memory without zeroing it.
++        if (comptime std.debug.runtime_safety or builtin.target.cpu.arch.isWasm()) @memset(page_buf, 0);
+ 
+         // Initialize the first set of pages to contain our viewport so that
+         // the top of the first page is always the active area.
+@@ -2674,8 +2677,9 @@ inline fn createPageExt(
+         page_alloc.free(page_buf);
+ 
+     // Required only with runtime safety because allocators initialize
+-    // to undefined, 0xAA.
+-    if (comptime std.debug.runtime_safety) @memset(page_buf, 0);
++    // to undefined, 0xAA. On wasm, page_allocator reuses freed memory
++    // without zeroing it.
++    if (comptime std.debug.runtime_safety or builtin.target.cpu.arch.isWasm()) @memset(page_buf, 0);
+ 
+     page.* = .{
+         .data = .initBuf(.init(page_buf), layout),

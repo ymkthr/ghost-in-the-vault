@@ -9,6 +9,7 @@ const options = {
   target: "es2022",
   outfile: "main.js",
   external: ["obsidian", "electron", ...builtinModules, ...builtinModules.map((m) => `node:${m}`)],
+  loader: { ".wasm": "binary" },
   logLevel: "info",
 };
 
