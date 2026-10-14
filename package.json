@@ -1,6 +1,6 @@
 {
   "name": "ghost-in-the-vault",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "Obsidian 内で Ghostty の見た目のままシェルを動かすターミナル",
   "type": "module",
