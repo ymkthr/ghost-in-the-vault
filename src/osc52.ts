@@ -1,7 +1,7 @@
 const START = "\x1b]52;";
 
 /**
- * zellij はコピーを OSC 52 で端末へ送るが、ghostty-web は OSC 52 を処理しない。
+ * Neovim や tmux はコピーを OSC 52 で端末へ送るが、ghostty-web は OSC 52 を処理しない。
  * 出力ストリーム (latin1 で 1 バイト 1 文字にしたもの) から OSC 52 を拾ってクリップボードへ渡す。
  */
 export function createOsc52Sniffer(onCopy: (text: string) => void): (chunk: string) => void {

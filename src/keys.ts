@@ -33,8 +33,8 @@ const KITTY_DISAMBIGUATE = 1;
 
 /**
  * Ctrl / Alt 付きの文字キーを Ghostty と同じ形で符号化する。
- * zellij は起動時に kitty keyboard protocol (disambiguate) を要求するので、そのときは CSI u 形式。
- * zellij の "Ctrl Alt h" と Alt+Backspace のように、従来形式では区別できない組み合わせがあるため。
+ * アプリ (Neovim、Helix など) が kitty keyboard protocol (disambiguate) を要求していれば CSI u 形式。
+ * Ctrl+Alt+h と Alt+Backspace のように、従来形式では区別できない組み合わせがあるため。
  */
 export function encodeTextKey(key: TextKey, kittyFlags: number): string {
   if (kittyFlags & KITTY_DISAMBIGUATE) {

@@ -1,9 +1,1 @@
-{
-  "id": "ghost-in-the-vault",
-  "name": "Ghost in the Vault",
-  "version": "0.1.0",
-  "minAppVersion": "1.5.0",
-  "description": "Ghostty の設定 (フォント・配色・カーソル) を読み込み、Obsidian 内から zellij セッションへ接続するターミナル。",
-  "author": "ymkthr",
-  "isDesktopOnly": true
-}
+{"id":"ghost-in-the-vault","name":"Ghost in the Vault","version":"0.2.0","minAppVersion":"1.5.0","description":"Ghostty の設定 (フォント・配色・カーソル) を読み込み、Obsidian 内でシェルを動かすターミナル。","author":"ymkthr","isDesktopOnly":true}

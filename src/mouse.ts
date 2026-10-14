@@ -31,7 +31,7 @@ const MODE_ANY_MOTION = 1003;
 const MODE_SGR = 1006;
 
 /**
- * ghostty-web 0.4.0 はマウス報告を実装しておらず、zellij のペインのクリックやスクロールが効かない。
+ * ghostty-web 0.4.0 はマウス報告を実装しておらず、TUI でのクリックやスクロールが効かない。
  * アプリがマウス報告を要求している間だけ、マウス操作を SGR シーケンスにして送る。
  * Shift を押している間は ghostty-web 側のテキスト選択に任せる (Ghostty と同じ挙動)。
  */

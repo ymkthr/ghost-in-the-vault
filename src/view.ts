@@ -8,11 +8,6 @@ import { type Pty, type PtyExit, spawnPty } from "./pty.ts";
 
 export const VIEW_TYPE = "ghost-in-the-vault";
 
-export interface ViewDeps {
-  sessionName: () => string;
-  loginEnv: () => Promise<NodeJS.ProcessEnv>;
-}
-
 type Session = { kind: "running"; pty: Pty; kittyFlags: () => number } | { kind: "exited" };
 
 type HeldOption = "AltLeft" | "AltRight" | null;
@@ -28,13 +23,13 @@ const MODIFIERS_TERMINAL_OWNS_WITHOUT_CMD = [[], ["Ctrl"], ["Alt"], ["Shift"], [
 
 const latin1 = new TextDecoder("latin1");
 
-export class ZellijTerminalView extends ItemView {
+export class TerminalView extends ItemView {
   private session: Session = { kind: "exited" };
   private teardown: (() => void)[] = [];
 
   constructor(
     leaf: WorkspaceLeaf,
-    private readonly deps: ViewDeps,
+    private readonly loginEnv: () => Promise<NodeJS.ProcessEnv>,
   ) {
     super(leaf);
     this.scope = new Scope(this.app.scope);
@@ -46,7 +41,7 @@ export class ZellijTerminalView extends ItemView {
   }
 
   getDisplayText(): string {
-    return `zellij: ${this.deps.sessionName()}`;
+    return "ターミナル";
   }
 
   getIcon(): string {
@@ -54,7 +49,7 @@ export class ZellijTerminalView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    const [env, layout] = await Promise.all([this.deps.loginEnv(), loadKeyLayout(), init()]);
+    const [env, layout] = await Promise.all([this.loginEnv(), loadKeyLayout(), init()]);
     const result = await loadGhosttyLook(env);
     if (result.kind === "fallback") new Notice(`Ghostty の設定を読めなかったため既定の見た目で開きます: ${result.reason}`);
     const { look } = result;
@@ -89,7 +84,7 @@ export class ZellijTerminalView extends ItemView {
         kind: "running",
         kittyFlags: kitty.flags,
         pty: spawnPty({
-          command: ["zellij", "attach", "--create", this.deps.sessionName()],
+          command: [env.SHELL ?? "/bin/sh", "-l"],
           cwd: this.app.vault.adapter instanceof FileSystemAdapter ? this.app.vault.adapter.getBasePath() : process.cwd(),
           env,
           size: { cols: term.cols, rows: term.rows },
@@ -101,7 +96,7 @@ export class ZellijTerminalView extends ItemView {
           },
           onExit: (exit) => {
             this.session = { kind: "exited" };
-            term.write(`\r\n\x1b[2m[${describeExit(exit)}。Enter で再接続]\x1b[0m\r\n`);
+            term.write(`\r\n\x1b[2m[${describeExit(exit)}。Enter で再起動]\x1b[0m\r\n`);
           },
         }),
       };
@@ -155,7 +150,7 @@ export class ZellijTerminalView extends ItemView {
 function describeExit(exit: PtyExit): string {
   switch (exit.kind) {
     case "exited":
-      return exit.code === 0 ? "zellij から切断しました" : `zellij が終了しました (code ${exit.code ?? "signal"})`;
+      return exit.code === 0 ? "シェルが終了しました" : `シェルが終了しました (code ${exit.code ?? "signal"})`;
     case "failed":
       return `起動に失敗しました: ${exit.message}`;
     default: {

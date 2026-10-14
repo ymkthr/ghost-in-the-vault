@@ -4,7 +4,7 @@ import { createKittyFlagsTracker, encodeTextKey } from "../src/keys.ts";
 
 const key = (over: Partial<Parameters<typeof encodeTextKey>[0]>) => ({ base: "h", text: "h", shift: false, alt: false, ctrl: false, ...over });
 
-test("kitty disambiguate では zellij の Alt Shift / Ctrl Alt バインドが区別できる CSI u を送る", () => {
+test("kitty disambiguate では Alt+Shift / Ctrl+Alt の組み合わせが区別できる CSI u を送る", () => {
   assert.equal(encodeTextKey(key({ alt: true, shift: true, text: "H" }), 1), "\x1b[104;4u");
   assert.equal(encodeTextKey(key({ alt: true, ctrl: true }), 1), "\x1b[104;7u");
   assert.equal(encodeTextKey(key({ base: ";", text: "+", alt: true, shift: true }), 1), "\x1b[59;4u");

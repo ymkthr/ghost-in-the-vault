@@ -4,12 +4,12 @@ import { promisify } from "node:util";
 
 const run = promisify(execFile);
 
-/** Obsidian を起動した端末やマルチプレクサの痕跡。残すと zellij が入れ子起動を拒否したり、TUI が Ghostty 本体だと誤認する。 */
+/** Obsidian を起動した端末やマルチプレクサの痕跡。残すとシェルや TUI が zellij / tmux の中や Ghostty 本体で動いていると誤認する。 */
 const INHERITED_TERMINAL_VARS = /^(ZELLIJ|GHOSTTY_|TERM_PROGRAM|TERMINFO$|TMUX)/;
 
 /**
  * ログインシェルの環境変数を取得する。Dock や launcher から起動した Obsidian は
- * ログインシェルの PATH を持たず、Homebrew や Nix の zellij / python3 が見つからないため。
+ * ログインシェルの PATH を持たず、Homebrew や Nix の python3 が見つからないため。
  */
 export async function loadLoginEnv(): Promise<NodeJS.ProcessEnv> {
   const shell = userInfo().shell ?? process.env.SHELL ?? "/bin/sh";

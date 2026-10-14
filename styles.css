@@ -1,5 +1,5 @@
 .workspace-leaf-content[data-type="ghost-in-the-vault"] > .view-content.gz-view {
-  padding: 2px;
+  padding: var(--gitv-padding-top, 2px) var(--gitv-padding-right, 2px) var(--gitv-padding-bottom, 2px) var(--gitv-padding-left, 2px);
   overflow: hidden;
 }
 

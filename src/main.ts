@@ -1,6 +1,6 @@
 import { type App, Plugin, PluginSettingTab, Setting, type WorkspaceLeaf } from "obsidian";
 import { loadLoginEnv } from "./login-env.ts";
-import { VIEW_TYPE, ZellijTerminalView } from "./view.ts";
+import { TerminalView, VIEW_TYPE } from "./view.ts";
 
 const LOCATIONS = {
   split: "ノートの下に分割",
@@ -12,32 +12,45 @@ type Location = keyof typeof LOCATIONS;
 
 const isLocation = (value: string): value is Location => value in LOCATIONS;
 
+const SIDES = ["top", "right", "bottom", "left"] as const;
+
+type PaddingSide = (typeof SIDES)[number];
+
+const PADDING_SIDES: Record<PaddingSide, string> = { top: "上", right: "右", bottom: "下", left: "左" };
+
 interface Settings {
-  sessionName: string;
   location: Location;
+  /** ターミナル外周の余白 (px) */
+  padding: Record<PaddingSide, number>;
 }
 
-const DEFAULT_SETTINGS: Settings = { sessionName: "obsidian", location: "split" };
+const DEFAULT_SETTINGS: Settings = { location: "split", padding: { top: 2, right: 2, bottom: 2, left: 2 } };
 
-export default class GhosttyZellijPlugin extends Plugin {
+const parsePadding = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+
+export default class GhostInTheVaultPlugin extends Plugin {
   settings: Settings = DEFAULT_SETTINGS;
   private loginEnv?: Promise<NodeJS.ProcessEnv>;
 
   async onload(): Promise<void> {
     const saved: unknown = await this.loadData();
     this.settings = parseSettings(saved);
+    this.applyPadding();
 
-    this.registerView(
-      VIEW_TYPE,
-      (leaf) =>
-        new ZellijTerminalView(leaf, {
-          sessionName: () => this.settings.sessionName,
-          loginEnv: () => (this.loginEnv ??= loadLoginEnv()),
-        }),
-    );
-    this.addRibbonIcon("terminal", "zellij ターミナルを開く", () => this.reveal());
-    this.addCommand({ id: "open", name: "zellij ターミナルを開く", callback: () => this.reveal() });
+    this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, () => (this.loginEnv ??= loadLoginEnv())));
+    this.addRibbonIcon("terminal", "ターミナルを開く", () => this.reveal());
+    this.addCommand({ id: "open", name: "ターミナルを開く", callback: () => this.reveal() });
     this.addSettingTab(new SettingsTab(this.app, this));
+  }
+
+  onunload(): void {
+    for (const side of SIDES) document.body.style.removeProperty(`--gitv-padding-${side}`);
+  }
+
+  /** 余白は CSS 変数で渡す。開いているターミナルにもすぐ効き、ghostty-web の FitAddon が行数・列数を合わせ直す。 */
+  applyPadding(): void {
+    for (const side of SIDES) document.body.style.setProperty(`--gitv-padding-${side}`, `${this.settings.padding[side]}px`);
   }
 
   private async reveal(): Promise<void> {
@@ -66,16 +79,22 @@ export default class GhosttyZellijPlugin extends Plugin {
 }
 
 function parseSettings(saved: unknown): Settings {
-  if (typeof saved !== "object" || saved === null) return { ...DEFAULT_SETTINGS };
-  const sessionName = "sessionName" in saved && typeof saved.sessionName === "string" ? saved.sessionName.trim() : "";
+  if (typeof saved !== "object" || saved === null) return structuredClone(DEFAULT_SETTINGS);
   const location = "location" in saved && typeof saved.location === "string" && isLocation(saved.location) ? saved.location : DEFAULT_SETTINGS.location;
-  return { sessionName: sessionName || DEFAULT_SETTINGS.sessionName, location };
+  const padding = { ...DEFAULT_SETTINGS.padding };
+  if ("padding" in saved && typeof saved.padding === "object" && saved.padding !== null) {
+    for (const side of SIDES) {
+      const value = side in saved.padding ? parsePadding(Reflect.get(saved.padding, side)) : null;
+      if (value !== null) padding[side] = value;
+    }
+  }
+  return { location, padding };
 }
 
 class SettingsTab extends PluginSettingTab {
   constructor(
     app: App,
-    private readonly plugin: GhosttyZellijPlugin,
+    private readonly plugin: GhostInTheVaultPlugin,
   ) {
     super(app, plugin);
   }
@@ -83,16 +102,6 @@ class SettingsTab extends PluginSettingTab {
   display(): void {
     const { containerEl, plugin } = this;
     containerEl.empty();
-
-    new Setting(containerEl)
-      .setName("zellij セッション名")
-      .setDesc("このセッションに attach する。無ければ作る。次に開いたときから反映。")
-      .addText((text) =>
-        text.setValue(plugin.settings.sessionName).onChange(async (value) => {
-          plugin.settings.sessionName = value.trim() || DEFAULT_SETTINGS.sessionName;
-          await plugin.saveData(plugin.settings);
-        }),
-      );
 
     new Setting(containerEl)
       .setName("開く場所")
@@ -107,5 +116,22 @@ class SettingsTab extends PluginSettingTab {
             await plugin.saveData(plugin.settings);
           }),
       );
+
+    for (const side of SIDES) {
+      new Setting(containerEl)
+        .setName(`余白 (${PADDING_SIDES[side]})`)
+        .setDesc("ターミナル外周の余白。単位は px。")
+        .addText((text) => {
+          text.inputEl.type = "number";
+          text.inputEl.min = "0";
+          text.setValue(String(plugin.settings.padding[side])).onChange(async (value) => {
+            const parsed = value.trim() === "" ? null : parsePadding(Number(value));
+            if (parsed === null) return;
+            plugin.settings.padding[side] = parsed;
+            plugin.applyPadding();
+            await plugin.saveData(plugin.settings);
+          });
+        });
+    }
   }
 }
