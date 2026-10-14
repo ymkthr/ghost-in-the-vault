@@ -1,4 +1,4 @@
-import { FitAddon, Terminal, init } from "ghostty-web";
+import { Terminal, init } from "ghostty-web";
 import { FileSystemAdapter, ItemView, Notice, Scope, type WorkspaceLeaf } from "obsidian";
 import { type OptionAsAlt, loadGhosttyLook } from "./ghostty-look.ts";
 import { type KeyLayout, createKittyFlagsTracker, encodeTextKey, loadKeyLayout } from "./keys.ts";
@@ -73,13 +73,10 @@ export class TerminalView extends ItemView {
       cursorStyle: look.cursorStyle,
       cursorBlink: look.cursorBlink,
     });
-    const fit = new FitAddon();
-    term.loadAddon(fit);
     term.open(host);
     // Obsidian は aria-label を持つ要素にホバーでツールチップを出すため、端末の上に "Terminal input" が出続ける。
     host.removeAttribute("aria-label");
-    fit.fit();
-    fit.observeResize();
+    const detachFit = fitToHost(term, host);
 
     const send = (data: string) => {
       if (this.session.kind === "running") this.session.pty.write(data);
@@ -135,7 +132,7 @@ export class TerminalView extends ItemView {
       detachInput,
       () => onData.dispose(),
       () => onResize.dispose(),
-      () => fit.dispose(),
+      detachFit,
       () => term.dispose(),
     ];
 
@@ -165,6 +162,32 @@ function describeExit(exit: PtyExit): string {
       return _exhaustive;
     }
   }
+}
+
+/**
+ * 入れ物の大きさに収まるだけの行数・列数に端末を合わせ、大きさが変わるたびに合わせ直す。
+ * Why not FitAddon: ghostty-web 0.4.0 の FitAddon はスクロールバー用に右端 15px を常に空けるが、
+ * スクロールバーは canvas の上に重ねて描かれるので、その分だけ右に余白ができてしまう。
+ */
+function fitToHost(term: Terminal, host: HTMLElement): () => void {
+  let frame = 0;
+  const fit = () => {
+    frame = 0;
+    const metrics = term.renderer?.getMetrics();
+    if (!metrics || metrics.width === 0 || metrics.height === 0) return;
+    const cols = Math.max(2, Math.floor(host.clientWidth / metrics.width));
+    const rows = Math.max(1, Math.floor(host.clientHeight / metrics.height));
+    if (cols !== term.cols || rows !== term.rows) term.resize(cols, rows);
+  };
+  const observer = new ResizeObserver(() => {
+    frame ||= requestAnimationFrame(fit);
+  });
+  fit();
+  observer.observe(host);
+  return () => {
+    observer.disconnect();
+    cancelAnimationFrame(frame);
+  };
 }
 
 /**
