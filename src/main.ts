@@ -22,9 +22,11 @@ interface Settings {
   location: Location;
   /** ターミナル外周の余白 (px) */
   padding: Record<PaddingSide, number>;
+  /** シェルが起動するたびに実行するコマンド。空なら何もしない */
+  startupCommand: string;
 }
 
-const DEFAULT_SETTINGS: Settings = { location: "split", padding: { top: 2, right: 2, bottom: 2, left: 2 } };
+const DEFAULT_SETTINGS: Settings = { location: "split", padding: { top: 2, right: 2, bottom: 2, left: 2 }, startupCommand: "" };
 
 const parsePadding = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
@@ -38,7 +40,14 @@ export default class GhostInTheVaultPlugin extends Plugin {
     this.settings = parseSettings(saved);
     this.applyPadding();
 
-    this.registerView(VIEW_TYPE, (leaf) => new TerminalView(leaf, () => (this.loginEnv ??= loadLoginEnv())));
+    this.registerView(
+      VIEW_TYPE,
+      (leaf) =>
+        new TerminalView(leaf, {
+          loginEnv: () => (this.loginEnv ??= loadLoginEnv()),
+          startupCommand: () => this.settings.startupCommand,
+        }),
+    );
     this.addRibbonIcon("terminal", "ターミナルを開く", () => this.reveal());
     this.addCommand({ id: "open", name: "ターミナルを開く", callback: () => this.reveal() });
     this.addSettingTab(new SettingsTab(this.app, this));
@@ -48,7 +57,7 @@ export default class GhostInTheVaultPlugin extends Plugin {
     for (const side of SIDES) document.body.style.removeProperty(`--gitv-padding-${side}`);
   }
 
-  /** 余白は CSS 変数で渡す。開いているターミナルにもすぐ効き、ghostty-web の FitAddon が行数・列数を合わせ直す。 */
+  /** 余白は CSS 変数で渡す。開いているターミナルにもすぐ効き、入れ物の大きさの変化で行数・列数も合わせ直される。 */
   applyPadding(): void {
     for (const side of SIDES) document.body.style.setProperty(`--gitv-padding-${side}`, `${this.settings.padding[side]}px`);
   }
@@ -88,7 +97,8 @@ function parseSettings(saved: unknown): Settings {
       if (value !== null) padding[side] = value;
     }
   }
-  return { location, padding };
+  const startupCommand = "startupCommand" in saved && typeof saved.startupCommand === "string" ? saved.startupCommand.trim() : "";
+  return { location, padding, startupCommand };
 }
 
 class SettingsTab extends PluginSettingTab {
@@ -113,6 +123,19 @@ class SettingsTab extends PluginSettingTab {
           .onChange(async (value) => {
             if (!isLocation(value)) return;
             plugin.settings.location = value;
+            await plugin.saveData(plugin.settings);
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("起動時のコマンド")
+      .setDesc("ターミナルを開いたとき (Enter でシェルを再起動したときも) に、プロンプトが出てから自動で実行する。空ならシェルが立ち上がるだけ。")
+      .addText((text) =>
+        text
+          .setPlaceholder("例: claude")
+          .setValue(plugin.settings.startupCommand)
+          .onChange(async (value) => {
+            plugin.settings.startupCommand = value.trim();
             await plugin.saveData(plugin.settings);
           }),
       );

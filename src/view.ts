@@ -23,13 +23,29 @@ const MODIFIERS_TERMINAL_OWNS_WITHOUT_CMD = [[], ["Ctrl"], ["Alt"], ["Shift"], [
 
 const latin1 = new TextDecoder("latin1");
 
+/**
+ * 起動時のコマンドは、シェルの行エディタが入力を待ち始めてから送る。zsh / bash 5.1+ / fish は
+ * 入力待ちに入るたびに bracketed paste を有効にする (ESC[?2004h) ので、それを合図にする。
+ * Why not 起動直後や出力が一瞬止まったときに送る: 行エディタが動く前の入力は端末ドライバが
+ * そのまま表示し、プロンプトの後でもう一度表示されるのでコマンドが二重に見える。
+ * 手元の zsh は最初の出力から入力待ちまで 1 秒以上かかった。
+ */
+const LINE_EDITOR_READY = "\x1b[?2004h";
+/** 合図を出さないシェル (sh や macOS の bash 3.2) 向けに、出力がこの時間止まったら送る。 */
+const STARTUP_COMMAND_FALLBACK_QUIET_MS = 3000;
+
+export interface ViewDeps {
+  loginEnv: () => Promise<NodeJS.ProcessEnv>;
+  startupCommand: () => string;
+}
+
 export class TerminalView extends ItemView {
   private session: Session = { kind: "exited" };
   private teardown: (() => void)[] = [];
 
   constructor(
     leaf: WorkspaceLeaf,
-    private readonly loginEnv: () => Promise<NodeJS.ProcessEnv>,
+    private readonly deps: ViewDeps,
   ) {
     super(leaf);
     this.scope = new Scope(this.app.scope);
@@ -49,7 +65,7 @@ export class TerminalView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    const [env, layout] = await Promise.all([this.loginEnv(), loadKeyLayout(), init()]);
+    const [env, layout] = await Promise.all([this.deps.loginEnv(), loadKeyLayout(), init()]);
     const result = await loadGhosttyLook(env);
     if (result.kind === "fallback") new Notice(`Ghostty の設定を読めなかったため既定の見た目で開きます: ${result.reason}`);
     const { look } = result;
@@ -84,26 +100,34 @@ export class TerminalView extends ItemView {
     const start = () => {
       const copy = createOsc52Sniffer((text) => void navigator.clipboard.writeText(text));
       const kitty = createKittyFlagsTracker();
-      this.session = {
-        kind: "running",
-        kittyFlags: kitty.flags,
-        pty: spawnPty({
-          command: [env.SHELL ?? "/bin/sh", "-l"],
-          cwd: this.app.vault.adapter instanceof FileSystemAdapter ? this.app.vault.adapter.getBasePath() : process.cwd(),
-          env,
-          size: { cols: term.cols, rows: term.rows },
-          onData: (chunk) => {
-            const text = latin1.decode(chunk);
-            copy(text);
-            kitty.feed(text);
-            term.write(chunk);
-          },
-          onExit: (exit) => {
-            this.session = { kind: "exited" };
-            term.write(`\r\n\x1b[2m[${describeExit(exit)}。Enter で再起動]\x1b[0m\r\n`);
-          },
-        }),
-      };
+      let startupCommand = this.deps.startupCommand();
+      let startupTimer = 0;
+      const pty = spawnPty({
+        command: [env.SHELL ?? "/bin/sh", "-l"],
+        cwd: this.app.vault.adapter instanceof FileSystemAdapter ? this.app.vault.adapter.getBasePath() : process.cwd(),
+        env,
+        size: { cols: term.cols, rows: term.rows },
+        onData: (chunk) => {
+          const text = latin1.decode(chunk);
+          copy(text);
+          kitty.feed(text);
+          term.write(chunk);
+          if (startupCommand === "") return;
+          window.clearTimeout(startupTimer);
+          const runStartupCommand = () => {
+            pty.write(`${startupCommand}\r`);
+            startupCommand = "";
+          };
+          if (text.includes(LINE_EDITOR_READY)) runStartupCommand();
+          else startupTimer = window.setTimeout(runStartupCommand, STARTUP_COMMAND_FALLBACK_QUIET_MS);
+        },
+        onExit: (exit) => {
+          window.clearTimeout(startupTimer);
+          this.session = { kind: "exited" };
+          term.write(`\r\n\x1b[2m[${describeExit(exit)}。Enter で再起動]\x1b[0m\r\n`);
+        },
+      });
+      this.session = { kind: "running", kittyFlags: kitty.flags, pty };
     };
 
     const onData = term.onData((data) => {
