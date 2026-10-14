@@ -57,6 +57,13 @@ export class TerminalView extends ItemView {
     this.contentEl.empty();
     this.contentEl.addClass("gz-view");
     this.contentEl.style.backgroundColor = look.theme.background ?? "";
+    // Why not styles.css: テーマ (Cupertino など) がサイドバーの .view-content の padding をより高い詳細度で上書きする。
+    // インラインの important ならどのテーマのスタイルシートにも負けない。値は設定画面が body に置く CSS 変数。
+    this.contentEl.style.setProperty(
+      "padding",
+      "var(--gitv-padding-top, 2px) var(--gitv-padding-right, 2px) var(--gitv-padding-bottom, 2px) var(--gitv-padding-left, 2px)",
+      "important",
+    );
     const host = this.contentEl.createDiv({ cls: "gz-host" });
 
     const term = new Terminal({
